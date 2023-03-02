@@ -2,7 +2,7 @@ package msggate
 
 import (
 	"insight/pkg/common/constant"
-	"insight/pkg/protos/msg"
+	"insight/pkg/proto/msg"
 
 	"github.com/golang/protobuf/proto"
 	"go.uber.org/zap"
@@ -37,12 +37,12 @@ func (ws *WsServer) argsValidate(req *Req, indetifier int32) (isPass bool, errCo
 			ws.log.Error("unmarshal data struct err", zap.String("errr", err.Error()), zap.Int32("indetifier", indetifier))
 			return false, 203, err.Error(), nil
 		}
-		if err := ws.validate.Struct(data); err != nil {
+		if err := ws.validate.Struct(&data); err != nil {
 			ws.log.Error("data args validate err", zap.String("errr", err.Error()), zap.Int32("indetifier", indetifier))
 			return false, 204, err.Error(), nil
 
 		}
-		return true, 0, "", data
+		return true, 0, "", &data
 	}
 	return false, 204, "input args err", nil
 }

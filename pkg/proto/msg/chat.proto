@@ -1,0 +1,45 @@
+syntax = "proto3";
+option go_package = "./;msg";
+import "msg.proto";
+package proto;
+
+//生成命令: protoc -I . --go_out=./ --go-grpc_out=./  ./chat.proto
+
+message SendMsgReq {
+    string token =1;
+    string operationID = 2;
+    MsgData data = 3;
+}
+
+message SendMsgResp {
+    int32 errCode = 1;
+    string errMsg = 2;
+    string serverMsgID = 4;
+    string clientMsgID = 5;
+    int64  sendTime = 6;  
+}
+
+message UserSendMsgResp {
+    string serverMsgID = 1;
+    string clientMsgID = 2;
+    int64  sendTime = 3;  
+}
+
+message GetMaxAndMinSeqReq {
+    string UserID = 1;
+    string OperationID = 2;
+}
+ 
+message GetMaxAndMinSeqResp {
+    int32 ErrCode = 1;
+    string ErrMsg = 2;
+    uint32 MaxSeq = 3;
+    uint32 MinSeq = 4;
+}
+
+// 消息服务聊天
+service Chat {
+    rpc SendMsg(SendMsgReq) returns(SendMsgResp);
+    rpc GetMaxAndMinSeq(GetMaxAndMinSeqReq) returns(GetMaxAndMinSeqResp);
+}
+

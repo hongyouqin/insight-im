@@ -2,6 +2,7 @@ package msggate
 
 import (
 	"bytes"
+	"context"
 	"encoding/gob"
 	"insight/pkg/common/config"
 	"insight/pkg/utils"
@@ -9,11 +10,15 @@ import (
 	"strconv"
 	"time"
 
+	rpc "insight/pkg/proto/msg"
+
 	"insight/pkg/common/constant"
 
 	"github.com/go-playground/validator"
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 )
 
 func NewWsServer(cfg *config.GateConfig, log *zap.Logger, validate *validator.Validate) *WsServer {
@@ -116,7 +121,6 @@ func (ws *WsServer) readMsg(conn *Conn) {
 }
 
 func (ws *WsServer) msgParse(conn *Conn, msg []byte) {
-	// to do
 	b := bytes.NewBuffer(msg)
 	decoder := gob.NewDecoder(b)
 	input := Req{}
@@ -144,7 +148,7 @@ func (ws *WsServer) msgParse(conn *Conn, msg []byte) {
 	switch input.ReqIdentifier {
 	case constant.WSSendMsg:
 		//转发消息给msg服务
-		ws.sendMsg(conn, &input)
+		ws.sendMsgReq(conn, &input)
 	case constant.WSHeartbeat:
 		//这里的心跳，赋予新的功能，会用于消息的同步处理
 		ws.heartbeat(conn, &input)
@@ -176,7 +180,88 @@ func (ws *WsServer) heartbeat(conn *Conn, msgReq *Req) {
 }
 
 // 转发消息
-func (ws *WsServer) sendMsg(conn *Conn, msg *Req) {
+func (ws *WsServer) sendMsgReq(conn *Conn, req *Req) {
 	//to do
-	ws.log.Info("消息投递", zap.String("userIp", conn.ws.RemoteAddr().String()), zap.String("userId", conn.userId))
+	//ws.log.Info("消息投递", zap.String("userIp", conn.ws.RemoteAddr().String()), zap.String("userId", conn.userId))
+	nReplay := new(rpc.SendMsgResp)
+	isPass, errCode, errMsg, data := ws.argsValidate(req, constant.WSSendMsg)
+	if isPass {
+		pdData := rpc.SendMsgReq{
+			Token:       req.Token,
+			OperationID: req.OperationID,
+			Data:        data.(*rpc.MsgData),
+		}
+		//消息服务grpc客户端,后续用服务发现来替换
+		clientConn, err := grpc.Dial("127.0.0.1:7749", grpc.WithInsecure())
+		if err != nil {
+			ws.log.Error("msg conn failed")
+			nReplay.ErrCode = 201
+			nReplay.ErrMsg = err.Error()
+			ws.sendMsgResp(conn, req, nReplay)
+			return
+		}
+		client := rpc.NewChatClient(clientConn)
+		resp, err := client.SendMsg(context.Background(), &pdData)
+		if err != nil {
+			ws.log.Error("send msg failed", zap.String("err", errMsg))
+			nReplay.ErrCode = 200
+			nReplay.ErrMsg = err.Error()
+			ws.sendMsgResp(conn, req, nReplay)
+			return
+		}
+		ws.sendMsgResp(conn, req, resp)
+		ws.log.Info("sendMsgResp rpc call success", zap.String("reply", resp.String()))
+	} else {
+		nReplay.ErrCode = errCode
+		nReplay.ErrMsg = errMsg
+		ws.sendMsgResp(conn, req, nReplay)
+	}
+}
+
+func (ws *WsServer) sendMsgResp(conn *Conn, m *Req, pb *rpc.SendMsgResp) {
+	// := make(map[string]interface{})
+
+	var mReplyData rpc.UserSendMsgResp
+	mReplyData.ClientMsgID = pb.GetClientMsgID()
+	mReplyData.ServerMsgID = pb.GetServerMsgID()
+	mReplyData.SendTime = pb.GetSendTime()
+
+	b, _ := proto.Marshal(&mReplyData)
+	mReply := Resp{
+		ReqIdentifier: m.ReqIdentifier,
+		MsgIncr:       m.MsgIncr,
+		ErrCode:       pb.GetErrCode(),
+		ErrMsg:        pb.GetErrMsg(),
+		OperationID:   m.OperationID,
+		Data:          b,
+	}
+	ws.Send(conn, mReply)
+}
+
+// 发送答复消息
+func (ws *WsServer) Send(conn *Conn, mReply interface{}) {
+	var b bytes.Buffer
+	//消息序列化
+	encoder := gob.NewEncoder(&b)
+	err := encoder.Encode(mReply)
+	if err != nil {
+		uid := conn.userId
+		platform := conn.PlatformID
+		ws.log.Sugar().Error(mReply.(Resp).OperationID, mReply.(Resp).ReqIdentifier, mReply.(Resp).ErrCode, mReply.(Resp).ErrMsg, "Encode Msg error", conn.ws.RemoteAddr().String(), uid, platform, err.Error())
+		return
+	}
+	err = ws.writeMsg(conn, b.Bytes())
+	if err != nil {
+		uid := conn.userId
+		platform := conn.PlatformID
+		ws.log.Sugar().Error(mReply.(Resp).OperationID, mReply.(Resp).ReqIdentifier, mReply.(Resp).ErrCode, mReply.(Resp).ErrMsg, "WS WriteMsg error", conn.ws.RemoteAddr().String(), uid, platform, err.Error())
+	}
+}
+
+// 写到socket里面去
+func (ws *WsServer) writeMsg(conn *Conn, msg []byte) error {
+	conn.wsMutex.Lock()
+	defer conn.wsMutex.Unlock()
+	conn.ws.SetWriteDeadline(time.Now().Add(time.Duration(60) * time.Second))
+	return conn.ws.WriteMessage(websocket.BinaryMessage, msg)
 }
