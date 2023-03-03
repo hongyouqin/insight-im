@@ -5,3 +5,7 @@
 ### 项目布局
 
 https://github.com/golang-standards/project-layout/blob/master/README_zh.md
+
+### insight-im 项目 git 地址
+
+https://github.com/hongyouqin/insight-im

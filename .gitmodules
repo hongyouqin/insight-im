@@ -1,0 +1,3 @@
+[submodule "insight-im-sdk"]
+	path = insight-im-sdk
+	url = https://github.com/hongyouqin/insight-im-sdk.git
