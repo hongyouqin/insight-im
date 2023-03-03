@@ -20,7 +20,7 @@ type Chat struct {
 
 func NewChatServer(log *zap.Logger) *Chat {
 	chat := Chat{
-		producer: kafka.NewKafkaProducer("127.0.0.1", "ws2ms_chat"),
+		producer: kafka.NewKafkaProducer("127.0.0.1:9092", "ws2ms_chat"),
 		log:      log,
 	}
 	return &chat
