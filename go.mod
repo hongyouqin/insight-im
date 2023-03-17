@@ -5,8 +5,10 @@ go 1.19
 require (
 	github.com/BurntSushi/toml v1.2.1
 	github.com/Shopify/sarama v1.38.1
+	github.com/emicklei/proto v1.11.1
 	github.com/go-playground/validator v9.31.0+incompatible
 	github.com/golang/protobuf v1.5.2
+	github.com/google/martian v2.1.0+incompatible
 	github.com/gorilla/websocket v1.5.0
 	github.com/natefinch/lumberjack v2.0.0+incompatible
 	github.com/samber/lo v1.37.0

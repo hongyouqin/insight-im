@@ -13,7 +13,7 @@ const (
 	WSPullMsgBySeqList = 1002
 	WSSendMsg          = 1003
 	WSHeartbeat        = 1004
-	WSSendSignalMsg    = 1004
+	WSSendSignalMsg    = 1005
 	WSPushMsg          = 2001
 	WSKickOnlineMsg    = 2002
 	WsLogoutMsg        = 2003
